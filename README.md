@@ -229,68 +229,6 @@ Vision/
 
 ---
 
-## Getting Started Locally
-
-### Prerequisites
-- Node.js 18+
-- npm
-- MongoDB Atlas account
-- Cloudinary account
-- Firebase project
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/QuantamWorld562-tech/Vision.git
-cd Vision
-```
-
-### 2. Set up the backend
-```bash
-cd server
-npm install
-```
-
-Create `server/.env`:
-```env
-PORT=5000
-MONGO_URI=your_mongodb_connection_string
-CLOUD_NAME=your_cloudinary_cloud_name
-API_KEY=your_cloudinary_api_key
-API_SECRET=your_cloudinary_api_secret
-SECRET_KEY=any_random_string_for_jwt
-EMAIL_USER=your_gmail_address
-EMAIL_PASS=your_gmail_app_password
-CLIENT_URL=http://localhost:5173
-```
-
-Start the backend:
-```bash
-npm run dev
-```
-
-### 3. Set up the frontend
-```bash
-cd client
-npm install
-```
-
-Create `client/.env`:
-```env
-VITE_SERVER_URL=http://localhost:5000
-VITE_FIREBASE_KEY=your_firebase_api_key
-```
-
-Start the frontend:
-```bash
-npm run dev
-```
-
-### 4. Open in browser
-```
-http://localhost:5173
-```
-
----
 
 ## Key Implementation Highlights
 
@@ -427,11 +365,6 @@ http://localhost:5173
 
 ---
 
-## Deployment
-
-See [DEPLOY.md](./DEPLOY.md) for the complete step-by-step deployment guide covering Render (backend) and Vercel (frontend).
-
----
 
 ## License
 
