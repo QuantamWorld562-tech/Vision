@@ -53,7 +53,6 @@ function SignUp() {
       if (backendImage) formData.append("photoUrl", backendImage);
 
       const res = await axios.post(`${serverUrl}/api/v1/auth/signup`, formData, { withCredentials: true });
-      if (res.data.token) localStorage.setItem("token", res.data.token);
       toast.success(res.data.message);
       navigate("/");
     } catch (error) {
@@ -76,7 +75,6 @@ function SignUp() {
         { userName: user.displayName, email: user.email, photoUrl: user.photoURL },
         { withCredentials: true },
       );
-      if (res.data.token) localStorage.setItem("token", res.data.token);
       dispatch(setUserData(res.data.user));
       toast.success("Signed in with Google");
       navigate("/");
