@@ -49,6 +49,7 @@ function Login() {
         { email, password },
         { withCredentials: true },
       );
+      if (res.data.token) localStorage.setItem("token", res.data.token);
       dispatch(setUserData(res.data.user));
       toast.success(res.data.message);
       navigate("/");
@@ -68,6 +69,7 @@ function Login() {
         { userName: user.displayName, email: user.email, photoUrl: user.photoURL },
         { withCredentials: true },
       );
+      if (res.data.token) localStorage.setItem("token", res.data.token);
       dispatch(setUserData(res.data.user));
       toast.success("Signed in with Google");
       navigate("/");
