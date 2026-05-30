@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+body {
+  scrollbar-width: none; /* Firefox */
+}
+
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+/* Utility for hiding scrollbars on any element */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
