@@ -18,15 +18,10 @@ const hashValue = (value) =>
  * is sent cross-origin (Vercel frontend → Render backend).
  * In development both run on localhost so Strict is fine, but None works too.
  */
-// Cross-origin cookie: SameSite=None + Secure is required when the frontend
-// and backend are on different domains (e.g. Vercel + Render).
-// We treat any non-localhost origin as production to be safe.
-const isProduction = process.env.NODE_ENV === "production" || !!process.env.CLIENT_URL?.startsWith("https");
-
 const cookieOptions = {
   httpOnly: true,
-  sameSite: isProduction ? "None" : "Strict",
-  secure: isProduction,
+  sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
+  secure: process.env.NODE_ENV === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
@@ -68,7 +63,7 @@ export const signUp = async (req, res) => {
     return res
       .cookie("token", token, cookieOptions)
       .status(201)
-      .json({ success: true, message: "Account created successfully", token });
+      .json({ success: true, message: "Account created successfully" });
   } catch (error) {
     console.error(error);
     return res
@@ -109,7 +104,7 @@ export const login = async (req, res) => {
     return res
       .cookie("token", token, cookieOptions)
       .status(200)
-      .json({ success: true, message: `Welcome back ${user.userName}`, token });
+      .json({ success: true, message: `Welcome back ${user.userName}` });
   } catch (error) {
     console.error(error);
     return res
@@ -158,7 +153,7 @@ export const googleAuth = async (req, res) => {
     return res
       .cookie("token", token, cookieOptions)
       .status(200)
-      .json({ success: true, message: "Google sign-in successful", user, token });
+      .json({ success: true, message: "Google sign-in successful", user });
   } catch (error) {
     console.error(error);
     return res

@@ -2,13 +2,7 @@ import jwt from "jsonwebtoken";
 
 const isAuthenticated = async (req, res, next) => {
     try {
-        // Support both Authorization header (cross-origin) and cookie (same-origin)
-        let token = req.cookies.token;
-
-        const authHeader = req.headers.authorization;
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            token = authHeader.split(" ")[1];
-        }
+        const token = req.cookies.token;
 
         if(!token){
             return res.status(401).json({
