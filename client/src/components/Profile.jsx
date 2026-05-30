@@ -19,6 +19,7 @@ function Profile({ isOpen, onClose }) {
       const res = await axios.get(`${serverUrl}/api/v1/auth/logout`, {
         withCredentials: true,
       });
+      localStorage.removeItem("token");
       toast.success(res.data.message);
       dispatch(setUserData(null));
 

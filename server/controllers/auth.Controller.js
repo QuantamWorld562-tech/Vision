@@ -5,14 +5,30 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import sendMail from "../config/sendMail.js";
 
+/** Generate a 6-digit numeric OTP */
+const generateOtp = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
 
-    /** Generate a 6-digit numeric OTP */
-    const generateOtp = () =>
-      Math.floor(100000 + Math.random() * 900000).toString();
+/** Hash an OTP/token with sha256 */
+const hashValue = (value) =>
+  crypto.createHash("sha256").update(value).digest("hex");
 
-    /** Hash an OTP/token with sha256 */
-    const hashValue = (value) =>
-      crypto.createHash("sha256").update(value).digest("hex");
+/**
+ * Cookie options — SameSite=None + Secure=true in production so the cookie
+ * is sent cross-origin (Vercel frontend → Render backend).
+ * In development both run on localhost so Strict is fine, but None works too.
+ */
+// Cross-origin cookie: SameSite=None + Secure is required when the frontend
+// and backend are on different domains (e.g. Vercel + Render).
+// We treat any non-localhost origin as production to be safe.
+const isProduction = process.env.NODE_ENV === "production" || !!process.env.CLIENT_URL?.startsWith("https");
+
+const cookieOptions = {
+  httpOnly: true,
+  sameSite: isProduction ? "None" : "Strict",
+  secure: isProduction,
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
 
 // ─── Sign Up ─────────────────────────────────────────────────────────────────
 
@@ -50,13 +66,9 @@ export const signUp = async (req, res) => {
     });
 
     return res
-      .cookie("token", token, {
-        httpOnly: true,
-        sameSite: "Strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      })
+      .cookie("token", token, cookieOptions)
       .status(201)
-      .json({ success: true, message: "Account created successfully" });
+      .json({ success: true, message: "Account created successfully", token });
   } catch (error) {
     console.error(error);
     return res
@@ -95,13 +107,9 @@ export const login = async (req, res) => {
     });
 
     return res
-      .cookie("token", token, {
-        httpOnly: true,
-        sameSite: "Strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      })
+      .cookie("token", token, cookieOptions)
       .status(200)
-      .json({ success: true, message: `Welcome back ${user.userName}` });
+      .json({ success: true, message: `Welcome back ${user.userName}`, token });
   } catch (error) {
     console.error(error);
     return res
@@ -114,7 +122,7 @@ export const login = async (req, res) => {
 
 export const logout = async (_req, res) => {
   try {
-    res.clearCookie("token");
+    res.clearCookie("token", cookieOptions);
     return res
       .status(200)
       .json({ success: true, message: "Logout successful" });
@@ -148,13 +156,9 @@ export const googleAuth = async (req, res) => {
     });
 
     return res
-      .cookie("token", token, {
-        httpOnly: true,
-        sameSite: "Strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      })
+      .cookie("token", token, cookieOptions)
       .status(200)
-      .json({ success: true, message: "Google sign-in successful", user });
+      .json({ success: true, message: "Google sign-in successful", user, token });
   } catch (error) {
     console.error(error);
     return res
@@ -179,16 +183,12 @@ export const forgotPassword = async (req, res) => {
         .status(404)
         .json({ success: false, message: "No account with that email" });
 
-
-
-    // Generate OTP and store its hash
     const otp = generateOtp();
     user.resetOtp = hashValue(otp);
-    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
     user.isoptverified = false;
     await user.save();
 
-    // Send OTP email using sendMail
     await sendMail(user.email, otp, user.userName);
 
     return res
@@ -219,30 +219,24 @@ export const verifyOtp = async (req, res) => {
         .status(404)
         .json({ success: false, message: "No account with that email" });
 
-    // Check expiry
     if (!user.otpExpires || user.otpExpires < Date.now()) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "OTP has expired. Please request a new one.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "OTP has expired. Please request a new one.",
+      });
     }
 
-    // Compare hashed OTP
     if (user.resetOtp !== hashValue(otp)) {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
-    // Mark OTP as verified and clear it
     user.isoptverified = true;
     user.resetOtp = undefined;
     user.otpExpires = undefined;
 
-    // Issue a short-lived reset token so the client can call resetPassword
     const resetToken = crypto.randomBytes(32).toString("hex");
     user.resetPasswordToken = hashValue(resetToken);
-    user.resetPasswordExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes to set new password
+    user.resetPasswordExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
     return res
@@ -263,12 +257,10 @@ export const resetPassword = async (req, res) => {
     const { resetToken, password } = req.body;
 
     if (!resetToken || !password) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Reset token and new password are required",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Reset token and new password are required",
+      });
     }
 
     const user = await User.findOne({
@@ -278,12 +270,10 @@ export const resetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Session expired or OTP not verified. Please start over.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Session expired or OTP not verified. Please start over.",
+      });
     }
 
     user.password = await bcrypt.hash(password, 10);
