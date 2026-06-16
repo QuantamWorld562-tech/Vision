@@ -2,7 +2,7 @@
 
 A full-stack video sharing platform built from scratch — inspired by YouTube. Users can upload videos, shorts, and community posts, interact with content, manage subscriptions, and creators get a dedicated studio with analytics and revenue insights.
 
-**Live Demo:** [vision-app.vercel.app](https://vision-app.vercel.app) &nbsp;|&nbsp; **Backend API:** [vision-backend.onrender.com](https://vision-backend.onrender.com)
+**Live Demo:** [vision-app.vercel.app](https://vision-ecru-psi.vercel.app/) &nbsp;|&nbsp; **Backend API:** [vision-backend.onrender.com](https://vision-backend.onrender.com)
 
 ---
 
