@@ -91,7 +91,7 @@ function ViewChannel() {
       </div>
 
       {/* Channel info row */}
-      <div className="flex flex-col sm:flex-row sm:items-end gap-4 px-2 -mt-10 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-end gap-4 px-2 -mt-10 pt-13 mb-4">
         {/* Avatar */}
         <div className="w-20 h-20 rounded-full border-4 border-white overflow-hidden bg-gray-200 shrink-0">
           {channelData.avatar ? (
