@@ -3,6 +3,7 @@ import axios from "axios";
 import { serverUrl } from "../App";
 import { useSelector } from "react-redux";
 import toast from "react-hot-toast";
+import Loader from "./Loader";
 
 function Shorts() {
   const [shorts, setShorts] = useState([]);
@@ -59,10 +60,11 @@ function Shorts() {
     }
   };
 
-  if (loading) {
+
+    if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-56px)]">
-        <div className="w-10 h-10 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin" />
+      <div className="flex items-center justify-center py-20">
+        <Loader />
       </div>
     );
   }
