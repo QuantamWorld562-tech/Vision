@@ -427,11 +427,6 @@ http://localhost:5173
 
 ---
 
-## Deployment
-
-See [DEPLOY.md](./DEPLOY.md) for the complete step-by-step deployment guide covering Render (backend) and Vercel (frontend).
-
----
 
 ## License
 
