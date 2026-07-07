@@ -383,39 +383,60 @@ export const aiSearch = async (req, res) => {
   }
 };
 
-// ─── AI Category Filter ───────────────────────────────────────────────────────
+// ─── AI Category Filter (with Cursor-Based Pagination) ───────────────────────
 
 export const getVideosByCategory = async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, cursor, limit = 12 } = req.query;
+    const pageSize = Math.min(parseInt(limit) || 12, 50); // cap at 50
 
-    if (!category || category === "All") {
-      const videos = await Video.find()
-        .sort({ createdAt: -1 })
-        .limit(40)
-        .populate("channel", "name avatar");
-      return res.status(200).json(videos);
+    let query = {};
+
+    // Cursor pagination: fetch videos older than the cursor (by _id)
+    if (cursor) {
+      query._id = { $lt: cursor };
     }
 
-    // Match videos whose tags or channel category match
+    if (!category || category === "All") {
+      // All videos — sorted newest first
+      const videos = await Video.find(query)
+        .sort({ _id: -1 }) // ObjectId is time-ordered
+        .limit(pageSize + 1) // fetch one extra to check if more exist
+        .populate("channel", "name avatar");
+
+      const hasMore = videos.length > pageSize;
+      const results = hasMore ? videos.slice(0, pageSize) : videos;
+      const nextCursor = hasMore ? results[results.length - 1]._id : null;
+
+      return res.status(200).json({ videos: results, nextCursor, hasMore });
+    }
+
+    // Category filter: match tags, title, or channel category
     const channelsInCategory = await Channel.find({
       category: { $regex: new RegExp(category, "i") },
     }).select("_id");
 
     const channelIds = channelsInCategory.map((c) => c._id);
 
-    const videos = await Video.find({
+    const categoryQuery = {
+      ...query,
       $or: [
         { channel: { $in: channelIds } },
         { tags: { $regex: new RegExp(category, "i") } },
         { title: { $regex: new RegExp(category, "i") } },
       ],
-    })
-      .sort({ views: -1, createdAt: -1 })
-      .limit(40)
+    };
+
+    const videos = await Video.find(categoryQuery)
+      .sort({ views: -1, _id: -1 }) // sort by popularity, then recency
+      .limit(pageSize + 1)
       .populate("channel", "name avatar");
 
-    return res.status(200).json(videos);
+    const hasMore = videos.length > pageSize;
+    const results = hasMore ? videos.slice(0, pageSize) : videos;
+    const nextCursor = hasMore ? results[results.length - 1]._id : null;
+
+    return res.status(200).json({ videos: results, nextCursor, hasMore });
   } catch (error) {
     return res.status(500).json({ message: `Failed to filter by category: ${error}` });
   }

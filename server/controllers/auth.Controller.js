@@ -25,6 +25,12 @@ const cookieOptions = {
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
+const serializeUser = (user) => {
+  const userObject = user.toObject ? user.toObject() : { ...user };
+  delete userObject.password;
+  return userObject;
+};
+
 // ─── Sign Up ─────────────────────────────────────────────────────────────────
 
 export const signUp = async (req, res) => {
@@ -63,7 +69,11 @@ export const signUp = async (req, res) => {
     return res
       .cookie("token", token, cookieOptions)
       .status(201)
-      .json({ success: true, message: "Account created successfully" });
+      .json({
+        success: true,
+        message: "Account created successfully",
+        user: serializeUser(user),
+      });
   } catch (error) {
     console.error(error);
     return res
@@ -104,7 +114,11 @@ export const login = async (req, res) => {
     return res
       .cookie("token", token, cookieOptions)
       .status(200)
-      .json({ success: true, message: `Welcome back ${user.userName}` });
+      .json({
+        success: true,
+        message: `Welcome back ${user.userName}`,
+        user: serializeUser(user),
+      });
   } catch (error) {
     console.error(error);
     return res
@@ -153,7 +167,11 @@ export const googleAuth = async (req, res) => {
     return res
       .cookie("token", token, cookieOptions)
       .status(200)
-      .json({ success: true, message: "Google sign-in successful", user });
+      .json({
+        success: true,
+        message: "Google sign-in successful",
+        user: serializeUser(user),
+      });
   } catch (error) {
     console.error(error);
     return res

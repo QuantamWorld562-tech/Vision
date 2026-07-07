@@ -53,6 +53,7 @@ function SignUp() {
       if (backendImage) formData.append("photoUrl", backendImage);
 
       const res = await axios.post(`${serverUrl}/api/v1/auth/signup`, formData, { withCredentials: true });
+      dispatch(setUserData(res.data.user));
       toast.success(res.data.message);
       navigate("/");
     } catch (error) {
