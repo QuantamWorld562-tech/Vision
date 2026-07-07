@@ -5,7 +5,7 @@ const userSlice = createSlice({
   initialState: {
     userData: null,
     channelData: null,
-    authLoading: true, // true until GetCurrentUser resolves
+    authLoading: true,
   },
   reducers: {
     setUserData: (state, action) => {

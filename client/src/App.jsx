@@ -3,37 +3,43 @@ import {
   RouterProvider,
   Navigate,
 } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import "./App.css";
-import Login from "./pages/Login";
-import Home from "./pages/Home";
-import SignUP from "./pages/SignUP";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
-import Shorts from "./components/Shorts";
-import Feed from "./components/Feed";
-import GetCurrentUser from "./customHooks/GetCurrentUser";
-import CreateChannel from "./components/CreateChannel";
-import ViewChannel from "./components/ViewChannel";
-import GetChannelData from "./customHooks/GetChannelData";
-import UpdateChannel from "./components/UpdateChannel";
 import { useSelector } from "react-redux";
-import CreatePage from "./pages/CreatePage";
-import CreateVideo from "./components/CreateVideo";
-import CreateShorts from "./components/CreateShorts";
-import CreatePlaylist from "./components/CreatePlaylist";
-import CreatePost from "./components/CreatePost";
-import WatchPage from "./pages/WatchPage";
-import LikedVideos from "./pages/LikedVideos";
-import SavedVideos from "./pages/SavedVideos";
-import SavedPlaylists from "./pages/SavedPlaylists";
-import HistoryPage from "./pages/HistoryPage";
-import SubscriptionsPage from "./pages/SubscriptionsPage";
-import SearchResults from "./pages/SearchResults";
-import StudioDashboard from "./pages/studio/StudioDashboard";
-import StudioAnalytics from "./pages/studio/StudioAnalytics";
-import StudioRevenue from "./pages/studio/StudioRevenue";
-import StudioContent from "./pages/studio/StudioContent";
-import EditVideo from "./pages/studio/EditVideo";
+
+// Always loaded — part of the initial shell or loaded immediately on app boot
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import SignUP from "./pages/SignUP";
+import Loader from "./components/Loader";
+import GetCurrentUser from "./customHooks/GetCurrentUser";
+import GetChannelData from "./customHooks/GetChannelData";
+
+// Lazy-loaded — only downloaded when the user navigates to that route
+const Feed = lazy(() => import("./components/Feed"));
+const Shorts = lazy(() => import("./components/Shorts"));
+const SearchResults = lazy(() => import("./pages/SearchResults"));
+const CreateChannel = lazy(() => import("./components/CreateChannel"));
+const ViewChannel = lazy(() => import("./components/ViewChannel"));
+const UpdateChannel = lazy(() => import("./components/UpdateChannel"));
+const CreatePage = lazy(() => import("./pages/CreatePage"));
+const CreateVideo = lazy(() => import("./components/CreateVideo"));
+const CreateShorts = lazy(() => import("./components/CreateShorts"));
+const CreatePlaylist = lazy(() => import("./components/CreatePlaylist"));
+const CreatePost = lazy(() => import("./components/CreatePost"));
+const WatchPage = lazy(() => import("./pages/WatchPage"));
+const LikedVideos = lazy(() => import("./pages/LikedVideos"));
+const SavedVideos = lazy(() => import("./pages/SavedVideos"));
+const SavedPlaylists = lazy(() => import("./pages/SavedPlaylists"));
+const HistoryPage = lazy(() => import("./pages/HistoryPage"));
+const SubscriptionsPage = lazy(() => import("./pages/SubscriptionsPage"));
+const StudioDashboard = lazy(() => import("./pages/studio/StudioDashboard"));
+const StudioAnalytics = lazy(() => import("./pages/studio/StudioAnalytics"));
+const StudioRevenue = lazy(() => import("./pages/studio/StudioRevenue"));
+const StudioContent = lazy(() => import("./pages/studio/StudioContent"));
+const EditVideo = lazy(() => import("./pages/studio/EditVideo"));
 
 // Wraps any route that requires login
 function ProtectedRoute({ children }) {
@@ -210,15 +216,17 @@ const browseRouter = createBrowserRouter([
   },
 ]);
 
-export const serverUrl = import.meta.env.VITE_SERVER_URL ;
+export const serverUrl = import.meta.env.VITE_SERVER_URL;
 
 function App() {
   return (
     <>
+    <Suspense fallback={<Loader/>} >
       <GetCurrentUser />
       <GetChannelData />
       <RouterProvider router={browseRouter} />
       <Toaster />
+      </Suspense>
     </>
   );
 }
