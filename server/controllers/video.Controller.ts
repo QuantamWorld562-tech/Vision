@@ -1,13 +1,25 @@
-import { Channel } from "../models/channel.Model.js";
-import { Video } from "../models/video.Model.js";
-import { User } from "../models/user.Model.js";
-import uploadOnCloudinary from "../config/cloudinary.js";
+import { Channel } from "../models/channel.Model.ts";
+import { Video } from "../models/video.Model.ts";
+import { User } from "../models/user.Model.ts";
+import uploadOnCloudinary from "../config/cloudinary.ts";
+import type { Request, Response } from "express";
+import { Types } from "mongoose";
 
-export const createVideo = async (req, res) => {
+export const createVideo = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
-    const { title, description, tags, channelId } = req.body;
+    const { title, description, tags, channelId } = req.body as {
+      title: string;
+      description?: string;
+      tags?: string;
+      channelId: string;
+    };
 
-    if (!title || !req.files?.video || !req.files?.thumbnail || !channelId) {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+
+    if (!files?.video?.[0] || !files?.thumbnail?.[0]) {
       return res.status(400).json({
         message: "Title, video, thumbnail and channelId are required",
         success: false,
@@ -19,15 +31,15 @@ export const createVideo = async (req, res) => {
       return res.status(400).json({ message: "Channel not found", success: false });
     }
 
-    const uploadVideo = await uploadOnCloudinary(req.files.video[0].path);
-    const uploadThumbnail = await uploadOnCloudinary(req.files.thumbnail[0].path);
+    const uploadVideo = await uploadOnCloudinary(files.video[0].path);
+    const uploadThumbnail = await uploadOnCloudinary(files.thumbnail[0].path);
 
-    let parsedTags = [];
+    let parsedTags: string[] = [];
     if (tags) {
       try {
-        parsedTags = JSON.parse(tags);
+        parsedTags = typeof tags === "string" ? JSON.parse(tags) : tags;
       } catch {
-        parsedTags = [];
+        parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean);
       }
     }
 
@@ -50,7 +62,10 @@ export const createVideo = async (req, res) => {
   }
 };
 
-export const getAllVideos = async (req, res) => {
+export const getAllVideos = async (
+  _req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const videos = await Video.find()
       .sort({ createdAt: -1 })
@@ -62,7 +77,10 @@ export const getAllVideos = async (req, res) => {
   }
 };
 
-export const getVideoById = async (req, res) => {
+export const getVideoById = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
     const video = await Video.findByIdAndUpdate(
@@ -81,76 +99,63 @@ export const getVideoById = async (req, res) => {
   }
 };
 
-export const likeVideo = async (req, res) => {
+export const likeVideo = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
-    const userId = req.id;
+    const userId = req.id!;
 
     const video = await Video.findById(id);
     if (!video) return res.status(404).json({ message: "Video not found" });
 
-    const alreadyLiked = video.likes.includes(userId);
+    const alreadyLiked = video.likes.some((item) => item.toString() === userId);
     if (alreadyLiked) {
-      video.likes.pull(userId);
-      // Also remove from user's likedVideos
+      video.likes = video.likes.filter((item) => item.toString() !== userId) as typeof video.likes;
       await User.findByIdAndUpdate(userId, { $pull: { likedVideos: id } });
     } else {
-      video.likes.push(userId);
-      video.dislikes.pull(userId); // remove dislike if switching
-      // Also add to user's likedVideos
+      video.likes.push(new Types.ObjectId(userId));
+      video.dislikes = video.dislikes.filter((item) => item.toString() !== userId) as typeof video.dislikes;
       await User.findByIdAndUpdate(userId, { $addToSet: { likedVideos: id } });
     }
     await video.save();
 
-    return res.status(200).json({ likes: video.likes.length, dislikes: video.dislikes.length, liked: !alreadyLiked });
+    return res.status(200).json({
+      likes: video.likes.length,
+      dislikes: video.dislikes.length,
+      liked: !alreadyLiked,
+    });
   } catch (error) {
     return res.status(500).json({ message: `Failed to like video: ${error}` });
   }
 };
 
-export const dislikeVideo = async (req, res) => {
+export const dislikeVideo = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
-    const userId = req.id;
+    const userId = req.id!;
 
     const video = await Video.findById(id);
     if (!video) return res.status(404).json({ message: "Video not found" });
 
-    const alreadyDisliked = video.dislikes.includes(userId);
+    const alreadyDisliked = video.dislikes.some((item) => item.toString() === userId);
     if (alreadyDisliked) {
-      video.dislikes.pull(userId);
+      video.dislikes = video.dislikes.filter((item) => item.toString() !== userId) as typeof video.dislikes;
     } else {
-      video.dislikes.push(userId);
-      video.likes.pull(userId); // remove like if switching
-      // Also remove from user's likedVideos if switching from like to dislike
+      video.dislikes.push(new Types.ObjectId(userId));
+      video.likes = video.likes.filter((item) => item.toString() !== userId) as typeof video.likes;
       await User.findByIdAndUpdate(userId, { $pull: { likedVideos: id } });
     }
     await video.save();
 
-    return res.status(200).json({ likes: video.likes.length, dislikes: video.dislikes.length });
+    return res
+      .status(200)
+      .json({ likes: video.likes.length, dislikes: video.dislikes.length });
   } catch (error) {
     return res.status(500).json({ message: `Failed to dislike video: ${error}` });
-  }
-};
-
-export const addComment = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { message } = req.body;
-    const userId = req.id;
-
-    if (!message) return res.status(400).json({ message: "Comment message is required" });
-
-    const video = await Video.findByIdAndUpdate(
-      id,
-      { $push: { comments: { author: userId, message } } },
-      { new: true },
-    ).populate("comments.author", "userName photoUrl");
-
-    if (!video) return res.status(404).json({ message: "Video not found" });
-
-    return res.status(201).json(video.comments);
-  } catch (error) {
-    return res.status(500).json({ message: `Failed to add comment: ${error}` });
   }
 };

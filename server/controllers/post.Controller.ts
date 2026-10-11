@@ -1,14 +1,18 @@
-import { Channel } from "../models/channel.Model.js";
-import { Post } from "../models/post.Model.js";
-import uploadOnCloudinary from "../config/cloudinary.js";
+import { Channel } from "../models/channel.Model.ts";
+import { Post } from "../models/post.Model.ts";
+import uploadOnCloudinary from "../config/cloudinary.ts";
+import type { Request, Response } from "express";
+import { Types } from "mongoose";
 
-export const createPost = async (req, res) => {
+export const createPost = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
-    const { content, channelId } = req.body;
-
-    if (!content || !channelId) {
-      return res.status(400).json({ message: "Content and channelId are required" });
-    }
+    const { content, channelId } = req.body as {
+      content: string;
+      channelId: string;
+    };
 
     const channelData = await Channel.findById(channelId);
     if (!channelData) {
@@ -17,7 +21,7 @@ export const createPost = async (req, res) => {
 
     let imageUrl = "";
     if (req.file) {
-      imageUrl = await uploadOnCloudinary(req.file.path);
+      imageUrl = (await uploadOnCloudinary(req.file.path)) || "";
     }
 
     const newPost = await Post.create({
@@ -36,7 +40,10 @@ export const createPost = async (req, res) => {
   }
 };
 
-export const getAllPosts = async (req, res) => {
+export const getAllPosts = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const posts = await Post.find()
       .sort({ createdAt: -1 })
@@ -48,7 +55,10 @@ export const getAllPosts = async (req, res) => {
   }
 };
 
-export const getChannelPosts = async (req, res) => {
+export const getChannelPosts = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { channelId } = req.params;
     const posts = await Post.find({ channel: channelId })
@@ -61,19 +71,22 @@ export const getChannelPosts = async (req, res) => {
   }
 };
 
-export const likePost = async (req, res) => {
+export const likePost = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
-    const userId = req.id;
+    const userId = req.id!;
 
     const post = await Post.findById(id);
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    const alreadyLiked = post.likes.includes(userId);
+    const alreadyLiked = post.likes.some((id) => id.toString() === userId);
     if (alreadyLiked) {
-      post.likes.pull(userId);
+      post.likes = post.likes.filter((id) => id.toString() !== userId) as typeof post.likes;
     } else {
-      post.likes.push(userId);
+      post.likes.push(new Types.ObjectId(userId));
     }
     await post.save();
 
@@ -83,42 +96,24 @@ export const likePost = async (req, res) => {
   }
 };
 
-export const addCommentToPost = async (req, res) => {
+export const deletePost = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
-    const { message } = req.body;
-    const userId = req.id;
-
-    if (!message) return res.status(400).json({ message: "Comment message is required" });
-
-    const post = await Post.findByIdAndUpdate(
-      id,
-      { $push: { comments: { author: userId, message } } },
-      { new: true },
-    ).populate("comments.author", "userName photoUrl");
-
-    if (!post) return res.status(404).json({ message: "Post not found" });
-
-    return res.status(201).json(post.comments);
-  } catch (error) {
-    return res.status(500).json({ message: `Failed to add comment: ${error}` });
-  }
-};
-
-export const deletePost = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.id;
+    const userId = req.id!;
 
     const post = await Post.findById(id).populate("channel", "owner");
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    if (post.channel.owner.toString() !== userId) {
+    const channelOwner = (post.channel as unknown as { owner: Types.ObjectId }).owner;
+    if (channelOwner.toString() !== userId) {
       return res.status(403).json({ message: "Not authorized to delete this post" });
     }
 
     await Post.findByIdAndDelete(id);
-    await Channel.findByIdAndUpdate(post.channel._id, {
+    await Channel.findByIdAndUpdate((post.channel as unknown as { _id: Types.ObjectId })._id, {
       $pull: { communityPosts: id },
     });
 

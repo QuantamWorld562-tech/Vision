@@ -1,14 +1,20 @@
-import { Channel } from "../models/channel.Model.js";
-import { Playlist } from "../models/playlist.Model.js";
-import { Video } from "../models/video.Model.js";
+import { Channel } from "../models/channel.Model.ts";
+import { Playlist } from "../models/playlist.Model.ts";
+import { Video } from "../models/video.Model.ts";
+import type { Request, Response } from "express";
+import type { Types } from "mongoose";
 
-export const createPlaylist = async (req, res) => {
+export const createPlaylist = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
-    const { title, description, visibility, channelId } = req.body;
-
-    if (!title || !channelId) {
-      return res.status(400).json({ message: "Title and channelId are required" });
-    }
+    const { title, description, visibility, channelId } = req.body as {
+      title: string;
+      description?: string;
+      visibility?: "public" | "private" | "unlisted";
+      channelId: string;
+    };
 
     const channelData = await Channel.findById(channelId);
     if (!channelData) {
@@ -32,7 +38,10 @@ export const createPlaylist = async (req, res) => {
   }
 };
 
-export const getChannelPlaylists = async (req, res) => {
+export const getChannelPlaylists = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { channelId } = req.params;
     const playlists = await Playlist.find({ channel: channelId })
@@ -45,7 +54,10 @@ export const getChannelPlaylists = async (req, res) => {
   }
 };
 
-export const getPlaylistById = async (req, res) => {
+export const getPlaylistById = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
     const playlist = await Playlist.findById(id)
@@ -60,12 +72,13 @@ export const getPlaylistById = async (req, res) => {
   }
 };
 
-export const addVideoToPlaylist = async (req, res) => {
+export const addVideoToPlaylist = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
-    const { videoId } = req.body;
-
-    if (!videoId) return res.status(400).json({ message: "videoId is required" });
+    const { videoId } = req.body as { videoId: string };
 
     const video = await Video.findById(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
@@ -84,7 +97,10 @@ export const addVideoToPlaylist = async (req, res) => {
   }
 };
 
-export const removeVideoFromPlaylist = async (req, res) => {
+export const removeVideoFromPlaylist = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id, videoId } = req.params;
 
@@ -102,20 +118,24 @@ export const removeVideoFromPlaylist = async (req, res) => {
   }
 };
 
-export const deletePlaylist = async (req, res) => {
+export const deletePlaylist = async (
+  req: Request,
+  res: Response,
+): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
-    const userId = req.id;
+    const userId = req.id!;
 
     const playlist = await Playlist.findById(id).populate("channel", "owner");
     if (!playlist) return res.status(404).json({ message: "Playlist not found" });
 
-    if (playlist.channel.owner.toString() !== userId) {
+    const channelOwner = (playlist.channel as unknown as { owner: Types.ObjectId }).owner;
+    if (channelOwner.toString() !== userId) {
       return res.status(403).json({ message: "Not authorized to delete this playlist" });
     }
 
     await Playlist.findByIdAndDelete(id);
-    await Channel.findByIdAndUpdate(playlist.channel._id, {
+    await Channel.findByIdAndUpdate((playlist.channel as unknown as { _id: Types.ObjectId })._id, {
       $pull: { playlists: id },
     });
 
