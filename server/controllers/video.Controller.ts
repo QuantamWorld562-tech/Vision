@@ -4,6 +4,8 @@ import { User } from "../models/user.Model.ts";
 import uploadOnCloudinary from "../config/cloudinary.ts";
 import type { Request, Response } from "express";
 import { Types } from "mongoose";
+import { recordUniqueView } from "../services/viewBuffer.service.ts";
+import { getOrSetCache, invalidateCache, invalidatePattern } from "../services/cache.service.ts";
 
 export const createVideo = async (
   req: Request,
@@ -56,6 +58,9 @@ export const createVideo = async (
       $push: { videos: newVideo._id },
     });
 
+    // Invalidate feed caches
+    invalidatePattern("vision:feed:*").catch(() => {});
+
     return res.status(201).json(newVideo);
   } catch (error) {
     return res.status(500).json({ message: `Failed to create video: ${error}` });
@@ -83,15 +88,17 @@ export const getVideoById = async (
 ): Promise<Response | undefined> => {
   try {
     const { id } = req.params;
-    const video = await Video.findByIdAndUpdate(
-      id,
-      { $inc: { views: 1 } },
-      { new: true },
-    ).populate("channel", "name avatar subscribes");
+
+    const video = await Video.findById(id).populate("channel", "name avatar subscribes");
 
     if (!video) {
       return res.status(404).json({ message: "Video not found", success: false });
     }
+
+    // High-throughput deduplicated view recording (HyperLogLog + Buffer)
+    const videoId = Array.isArray(id) ? id[0] : id;
+    const viewerIdentifier = String((req as any).id || req.ip || "anonymous");
+    recordUniqueView(videoId, viewerIdentifier).catch(() => {});
 
     return res.status(200).json(video);
   } catch (error) {
@@ -120,6 +127,7 @@ export const likeVideo = async (
       await User.findByIdAndUpdate(userId, { $addToSet: { likedVideos: id } });
     }
     await video.save();
+    invalidateCache(`vision:video:${id}`).catch(() => {});
 
     return res.status(200).json({
       likes: video.likes.length,
@@ -151,6 +159,7 @@ export const dislikeVideo = async (
       await User.findByIdAndUpdate(userId, { $pull: { likedVideos: id } });
     }
     await video.save();
+    invalidateCache(`vision:video:${id}`).catch(() => {});
 
     return res
       .status(200)
