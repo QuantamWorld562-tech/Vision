@@ -1,8 +1,24 @@
 # Vision 🎬
 
-A full-stack video sharing platform built from scratch — inspired by YouTube. Users can upload videos, shorts, and community posts, interact with content, manage subscriptions, and creators get a dedicated studio with analytics and revenue insights.
+A full-stack video-sharing platform built from scratch — inspired by YouTube. Users can upload videos, shorts, and community posts, interact with content, manage subscriptions, and creators get a dedicated studio with analytics and revenue insights.
+
+**Recent upgrades:** refresh-token auth flow, centralized server error handling, request sanitization, validation layer, and a test-ready backend structure.
 
 **Live Demo:** [vision-ecru-psi.vercel.app](https://vision-ecru-psi.vercel.app/) &nbsp;|&nbsp; **Backend API:** [vision-backend.onrender.com](https://vision-backend.onrender.com)
+
+---
+
+## Why this project is stronger now
+
+Vision has moved beyond a basic tutorial-grade app by adding production-minded backend hardening:
+
+- short-lived access tokens with refresh-token rotation and hashed refresh storage
+- centralized Express error handling for cleaner API responses
+- request sanitization to reduce unsafe Mongo-style payloads
+- reusable validation helpers across auth flows
+- Node-based test harness for validation checks and future expansion
+
+This makes the project feel much closer to a real product backend while keeping the core features intact.
 
 ---
 
@@ -15,11 +31,18 @@ A full-stack video sharing platform built from scratch — inspired by YouTube. 
 ## Features
 
 ### Authentication
-- Email/password signup and login with JWT (stored in httpOnly cookies)
+- Email/password signup and login with JWT-based access cookies and refresh-token rotation
+- Hashed refresh-token storage for safer session lifecycle management
 - Google OAuth via Firebase
 - OTP-based forgot password flow — 6-digit code sent to email, verified, then reset token issued
 - Rate limiting on auth and OTP endpoints (brute-force protection)
 - Protected routes — unauthenticated users redirected to login
+
+### Production hardening
+- Centralized server error middleware for cleaner API handling
+- Request sanitization to reduce unsafe Mongo input patterns
+- Validation layer on auth routes before business logic executes
+- Built-in Node test harness for validation coverage and future growth
 
 ### Video Platform
 - Upload videos with thumbnail, title, description, and tags
@@ -108,6 +131,7 @@ A full-stack video sharing platform built from scratch — inspired by YouTube. 
 | MongoDB Atlas | Cloud database |
 | Cloudinary | Video and image CDN |
 | Firebase | Google authentication |
+| Node test runner | Validation coverage and regression checks |
 
 ---
 
@@ -387,6 +411,8 @@ http://localhost:5173
 ### In Progress / Next Up
 > See [CONCEPT.md](./CONCEPT.md) for detailed implementation guides on these features.
 
+- **TypeScript migration** — convert the server and client to typed contracts and interfaces
+- **Zod validation** — replace ad-hoc checks with schema validation across route payloads
 - **Video player upgrades** — playback speed (0.25x–2x), Picture-in-Picture (native browser API), mini floating player on scroll, custom controls overlay
 - **Nested comment replies + likes** — reply threads (schema already in place), like/unlike on comments and replies, sort by Top / Newest, expand/collapse threads
 
