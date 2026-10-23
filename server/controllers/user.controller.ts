@@ -5,6 +5,8 @@ import { Video } from "../models/video.Model.ts";
 import { Playlist } from "../models/playlist.Model.ts";
 import uploadOnCloudinary from "../config/cloudinary.ts";
 import { Types } from "mongoose";
+import { withTransaction } from "../services/transaction.service.ts";
+import { getOrSetCache, invalidateCache, invalidatePattern } from "../services/cache.service.ts";
 
 export const getCurrentUser = async (req: Request, res: Response): Promise<Response | undefined> => {
   try {
@@ -179,15 +181,19 @@ export const toggleSubscribe = async (req: Request, res: Response): Promise<Resp
       (sub: Types.ObjectId) => sub.toString() === channelId
     );
 
-    if (alreadySubscribed) {
-      await User.findByIdAndUpdate(userId, { $pull: { subscriptions: channelId } });
-      await Channel.findByIdAndUpdate(channelId, { $pull: { subscribes: userId } });
-      return res.status(200).json({ subscribed: false, subscriberCount: channel.subscribes.length - 1 });
-    } else {
-      await User.findByIdAndUpdate(userId, { $addToSet: { subscriptions: channelId } });
-      await Channel.findByIdAndUpdate(channelId, { $addToSet: { subscribes: userId } });
-      return res.status(200).json({ subscribed: true, subscriberCount: channel.subscribes.length + 1 });
-    }
+    const result = await withTransaction(async (session) => {
+      if (alreadySubscribed) {
+        await User.findByIdAndUpdate(userId, { $pull: { subscriptions: channelId } }, { session });
+        await Channel.findByIdAndUpdate(channelId, { $pull: { subscribes: userId } }, { session });
+        return { subscribed: false, subscriberCount: Math.max(0, channel.subscribes.length - 1) };
+      } else {
+        await User.findByIdAndUpdate(userId, { $addToSet: { subscriptions: channelId } }, { session });
+        await Channel.findByIdAndUpdate(channelId, { $addToSet: { subscribes: userId } }, { session });
+        return { subscribed: true, subscriberCount: channel.subscribes.length + 1 };
+      }
+    });
+
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({ message: `Failed to toggle subscription: ${error}` });
   }
@@ -418,14 +424,44 @@ export const getVideosByCategory = async (req: Request, res: Response): Promise<
     };
     const pageSize = Math.min(parseInt(limit, 10) || 12, 50);
 
-    const query: Record<string, unknown> = {};
-    if (cursor) {
-      query._id = { $lt: new Types.ObjectId(cursor) };
-    }
+    const cacheKey = `vision:feed:cat:${category || "All"}:${cursor || "first"}:${pageSize}`;
 
-    if (!category || category === "All") {
-      const videos = await Video.find(query)
-        .sort({ _id: -1 })
+    const data = await getOrSetCache(cacheKey, async () => {
+      const query: Record<string, unknown> = {};
+      if (cursor) {
+        query._id = { $lt: new Types.ObjectId(cursor) };
+      }
+
+      if (!category || category === "All") {
+        const videos = await Video.find(query)
+          .sort({ _id: -1 })
+          .limit(pageSize + 1)
+          .populate("channel", "name avatar");
+
+        const hasMore = videos.length > pageSize;
+        const results = hasMore ? videos.slice(0, pageSize) : videos;
+        const nextCursor = hasMore ? results[results.length - 1]._id : null;
+
+        return { videos: results, nextCursor, hasMore };
+      }
+
+      const channelsInCategory = await Channel.find({
+        category: { $regex: new RegExp(category, "i") },
+      }).select("_id");
+
+      const channelIds = channelsInCategory.map((c) => c._id);
+
+      const categoryQuery = {
+        ...query,
+        $or: [
+          { channel: { $in: channelIds } },
+          { tags: { $regex: new RegExp(category, "i") } },
+          { title: { $regex: new RegExp(category, "i") } },
+        ],
+      };
+
+      const videos = await Video.find(categoryQuery)
+        .sort({ views: -1, _id: -1 })
         .limit(pageSize + 1)
         .populate("channel", "name avatar");
 
@@ -433,34 +469,10 @@ export const getVideosByCategory = async (req: Request, res: Response): Promise<
       const results = hasMore ? videos.slice(0, pageSize) : videos;
       const nextCursor = hasMore ? results[results.length - 1]._id : null;
 
-      return res.status(200).json({ videos: results, nextCursor, hasMore });
-    }
+      return { videos: results, nextCursor, hasMore };
+    }, 180);
 
-    const channelsInCategory = await Channel.find({
-      category: { $regex: new RegExp(category, "i") },
-    }).select("_id");
-
-    const channelIds = channelsInCategory.map((c) => c._id);
-
-    const categoryQuery = {
-      ...query,
-      $or: [
-        { channel: { $in: channelIds } },
-        { tags: { $regex: new RegExp(category, "i") } },
-        { title: { $regex: new RegExp(category, "i") } },
-      ],
-    };
-
-    const videos = await Video.find(categoryQuery)
-      .sort({ views: -1, _id: -1 })
-      .limit(pageSize + 1)
-      .populate("channel", "name avatar");
-
-    const hasMore = videos.length > pageSize;
-    const results = hasMore ? videos.slice(0, pageSize) : videos;
-    const nextCursor = hasMore ? results[results.length - 1]._id : null;
-
-    return res.status(200).json({ videos: results, nextCursor, hasMore });
+    return res.status(200).json(data);
   } catch (error) {
     return res.status(500).json({ message: `Failed to filter by category: ${error}` });
   }
@@ -636,6 +648,10 @@ export const updateVideoMeta = async (req: Request, res: Response): Promise<Resp
       { new: true },
     );
 
+    // Invalidate caches
+    invalidateCache(`vision:video:${id}`).catch(() => {});
+    invalidatePattern("vision:feed:*").catch(() => {});
+
     return res.status(200).json(updated);
   } catch (error) {
     return res.status(500).json({ message: `Failed to update video: ${error}` });
@@ -657,6 +673,10 @@ export const deleteVideo = async (req: Request, res: Response): Promise<Response
 
     await Video.findByIdAndDelete(id);
     await Channel.findByIdAndUpdate(channelData._id, { $pull: { videos: id } });
+
+    // Invalidate caches
+    invalidateCache(`vision:video:${id}`).catch(() => {});
+    invalidatePattern("vision:feed:*").catch(() => {});
 
     return res.status(200).json({ message: "Video deleted" });
   } catch (error) {
