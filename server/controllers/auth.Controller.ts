@@ -39,6 +39,24 @@ const serializeUser = (user: IUser) => {
   return userObject;
 };
 
+const sendAuthResponse = (
+  res: Response,
+  user: IUser,
+  tokens: { accessToken: string; refreshToken: string },
+  message: string,
+  statusCode = 200,
+) => {
+  return res
+    .cookie("token", tokens.accessToken, accessCookieOptions)
+    .cookie("refreshToken", tokens.refreshToken, refreshCookieOptions)
+    .status(statusCode)
+    .json({
+      success: true,
+      message,
+      user: serializeUser(user),
+    });
+};
+
 const issueTokens = async (user: IUser) => {
   const accessToken = jwt.sign({ userId: user._id }, process.env.SECRET_KEY!, {
     expiresIn: "15m",
@@ -85,17 +103,8 @@ export const signUp = async (
       photoUrl,
     });
 
-    const { accessToken, refreshToken } = await issueTokens(user);
-
-    return res
-      .cookie("token", accessToken, accessCookieOptions)
-      .cookie("refreshToken", refreshToken, refreshCookieOptions)
-      .status(201)
-      .json({
-        success: true,
-        message: "Account created successfully",
-        user: serializeUser(user),
-      });
+    const tokens = await issueTokens(user);
+    return sendAuthResponse(res, user, tokens, "Account created successfully", 201);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ success: false, message: "Internal server error" });
@@ -121,17 +130,8 @@ export const login = async (
       return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    const { accessToken, refreshToken } = await issueTokens(user);
-
-    return res
-      .cookie("token", accessToken, accessCookieOptions)
-      .cookie("refreshToken", refreshToken, refreshCookieOptions)
-      .status(200)
-      .json({
-        success: true,
-        message: `Welcome back ${user.userName}`,
-        user: serializeUser(user),
-      });
+    const tokens = await issueTokens(user);
+    return sendAuthResponse(res, user, tokens, `Welcome back ${user.userName}`);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ success: false, message: "Internal server error" });
@@ -224,17 +224,8 @@ export const googleAuth = async (
       }
     }
 
-    const { accessToken, refreshToken } = await issueTokens(user);
-
-    return res
-      .cookie("token", accessToken, accessCookieOptions)
-      .cookie("refreshToken", refreshToken, refreshCookieOptions)
-      .status(200)
-      .json({
-        success: true,
-        message: "Google sign-in successful",
-        user: serializeUser(user),
-      });
+    const tokens = await issueTokens(user);
+    return sendAuthResponse(res, user, tokens, "Google sign-in successful");
   } catch (error) {
     console.error(error);
     return res.status(500).json({ success: false, message: "Internal server error" });
