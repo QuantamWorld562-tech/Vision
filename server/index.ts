@@ -82,40 +82,6 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// ── NoSQL Injection Sanitizer ──────────────────────────────────
-type SanitizedValue = string | number | boolean | null | undefined | SanitizedObject | SanitizedValue[];
-interface SanitizedObject {
-  [key: string]: SanitizedValue;
-}
-
-const sanitizeInput = (value: unknown): SanitizedValue => {
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeInput(item));
-  }
-
-  if (value && typeof value === "object") {
-    const sanitized: SanitizedObject = {};
-
-    Object.entries(value as Record<string, unknown>).forEach(([key, itemValue]) => {
-      const safeKey = key.replace(/\$|\./g, "");
-      sanitized[safeKey] = sanitizeInput(itemValue);
-    });
-
-    return sanitized;
-  }
-
-  return value as SanitizedValue;
-};
-
-app.use((req, _res, next) => {
-  if (req.body) {
-    const sanitized = sanitizeInput(req.body) as Record<string, unknown>;
-    Object.keys(req.body as object).forEach((k) => delete (req.body as Record<string, unknown>)[k]);
-    Object.assign(req.body as object, sanitized);
-  }
-  next();
-});
-
 // ── Health Check & Base Routes ─────────────────────────────────
 app.get("/health", (_req, res) => {
   res.status(200).json({
@@ -123,7 +89,7 @@ app.get("/health", (_req, res) => {
     message: "Server is healthy",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    dbConnected: !!mongoose?.connection?.readyState && mongoose.connection.readyState === 1,
+    dbConnected: mongoose.connection.readyState === 1,
   });
 });
 
@@ -134,7 +100,7 @@ app.get("/", (_req, res) => {
     success: true,
     message: "Vision backend is running",
     version: "2.0.0-ts",
-    dbConnected: !!mongoose?.connection?.readyState && mongoose.connection.readyState === 1,
+    dbConnected: mongoose.connection.readyState === 1,
   });
 });
 
