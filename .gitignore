@@ -1,0 +1,23 @@
+# OS / editor junk
+.DS_Store
+**/.DS_Store
+.vscode/
+
+# install / build output
+node_modules/
+client/node_modules/
+server/node_modules/
+dist/
+build/
+
+# upload temp files
+server/uploads/*
+!server/uploads/.gitkeep
+
+# redis dumps
+*.rdb
+
+# Documentation
+level.md
+universal.md
+
