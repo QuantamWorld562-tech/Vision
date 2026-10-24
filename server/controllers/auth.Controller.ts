@@ -5,7 +5,7 @@ import uploadOnCloudinary from "../config/cloudinary.ts";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import sendMail from "../config/sendMail.ts";
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
 
 /** Generate a 6-digit numeric OTP */
 const generateOtp = (): string => Math.floor(100000 + Math.random() * 900000).toString();
@@ -75,96 +75,82 @@ const issueTokens = async (user: IUser) => {
 
 // ─── Sign Up ─────────────────────────────────────────────────────────────────
 
-export const signUp = async (
-  req: Request,
-  res: Response,
-): Promise<Response | undefined> => {
-  try {
-    const { userName, email, password } = req.body as {
-      userName: string;
-      email: string;
-      password: string;
-    };
+export const signUp = async (req: Request, res: Response) => {
+  const { userName, email, password } = req.body as {
+    userName: string;
+    email: string;
+    password: string;
+  };
 
-    const existUser = await User.findOne({ email });
-    if (existUser) {
-      return res.status(400).json({ success: false, message: "Email already in use" });
-    }
-
-    let photoUrl: string | undefined;
-    if (req.file) photoUrl = await uploadOnCloudinary(req.file.path);
-
-    const hashPassword = await bcrypt.hash(password, 10);
-
-    const user = await User.create({
-      userName,
-      email,
-      password: hashPassword,
-      photoUrl,
-    });
-
-    const tokens = await issueTokens(user);
-    return sendAuthResponse(res, user, tokens, "Account created successfully", 201);
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+  const existUser = await User.findOne({ email });
+  if (existUser) {
+    return res.status(400).json({ success: false, message: "Email already in use" });
   }
+
+  let photoUrl: string | undefined;
+  if (req.file) photoUrl = await uploadOnCloudinary(req.file.path);
+
+  const hashPassword = await bcrypt.hash(password, 10);
+
+  const user = await User.create({
+    userName,
+    email,
+    password: hashPassword,
+    photoUrl,
+  });
+
+  const tokens = await issueTokens(user);
+  return sendAuthResponse(res, user, tokens, "Account created successfully", 201);
 };
 
 // ─── Login ───────────────────────────────────────────────────────────────────
 
-export const login = async (
-  req: Request,
-  res: Response,
-): Promise<Response | undefined> => {
-  try {
-    const { email, password } = req.body as { email: string; password: string };
+export const login = async (req: Request, res: Response) => {
+  const { email, password } = req.body as { email: string; password: string };
 
-    const user = await User.findOne({ email }).select("+password");
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    const matchPassword = bcrypt.compareSync(password, user.password!);
-    if (!matchPassword) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
-    }
-
-    const tokens = await issueTokens(user);
-    return sendAuthResponse(res, user, tokens, `Welcome back ${user.userName}`);
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+  const user = await User.findOne({ email }).select("+password");
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found" });
   }
+
+  const matchPassword = await bcrypt.compare(password, user.password!);
+  if (!matchPassword) {
+    return res.status(401).json({ success: false, message: "Invalid credentials" });
+  }
+
+  const tokens = await issueTokens(user);
+  return sendAuthResponse(res, user, tokens, `Welcome back ${user.userName}`);
 };
 
 // ─── Logout ──────────────────────────────────────────────────────────────────
 
-export const logout = async (
-  req: Request,
-  res: Response,
-): Promise<Response | undefined> => {
-  try {
-    const userId = req.id || req.cookies?.userId;
-
-    if (userId) {
-      await User.findByIdAndUpdate(userId, { refreshToken: null });
+export const logout = async (req: Request, res: Response) => {
+  let userId = req.id;
+  if (!userId && req.cookies?.refreshToken) {
+    try {
+      const decoded = jwt.verify(
+        req.cookies.refreshToken,
+        process.env.REFRESH_SECRET || process.env.SECRET_KEY!,
+      ) as jwt.JwtPayload & { userId: string };
+      userId = decoded.userId;
+    } catch {
+      // ignore expired / invalid refresh token
     }
-
-    res.clearCookie("token", accessCookieOptions);
-    res.clearCookie("refreshToken", refreshCookieOptions);
-
-    return res.status(200).json({ success: true, message: "Logout successful" });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
   }
+
+  if (userId) {
+    await User.findByIdAndUpdate(userId, { refreshToken: null });
+  }
+
+  res.clearCookie("token", accessCookieOptions);
+  res.clearCookie("refreshToken", refreshCookieOptions);
+
+  return res.status(200).json({ success: true, message: "Logout successful" });
 };
 
-export const refreshTokenController = async (
-  req: Request,
-  res: Response,
-): Promise<Response | undefined> => {
+// ─── Refresh Token ───────────────────────────────────────────────────────────
+
+export const refreshTokenController = async (req: Request, res: Response) => {
   try {
     const incomingRefreshToken: string | undefined = req.cookies?.refreshToken;
 
@@ -202,133 +188,99 @@ export const refreshTokenController = async (
 
 // ─── Google Auth ─────────────────────────────────────────────────────────────
 
-export const googleAuth = async (
-  req: Request,
-  res: Response,
-): Promise<Response | undefined> => {
-  try {
-    const { userName, email, photoUrl } = req.body as {
-      userName: string;
-      email: string;
-      photoUrl?: string;
-    };
+export const googleAuth = async (req: Request, res: Response) => {
+  const { userName, email, photoUrl } = req.body as {
+    userName: string;
+    email: string;
+    photoUrl?: string;
+  };
 
-    let user = await User.findOne({ email });
+  let user = await User.findOne({ email });
 
-    if (!user) {
-      user = await User.create({ userName, email, photoUrl: photoUrl || "" });
-    } else {
-      if (!user.photoUrl && photoUrl) {
-        user.photoUrl = photoUrl;
-        await user.save();
-      }
-    }
-
-    const tokens = await issueTokens(user);
-    return sendAuthResponse(res, user, tokens, "Google sign-in successful");
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+  if (!user) {
+    user = await User.create({ userName, email, photoUrl: photoUrl || "" });
+  } else if (!user.photoUrl && photoUrl) {
+    user.photoUrl = photoUrl;
+    await user.save();
   }
+
+  const tokens = await issueTokens(user);
+  return sendAuthResponse(res, user, tokens, "Google sign-in successful");
 };
 
 // ─── Forgot Password — send OTP ──────────────────────────────────────────────
 
-export const forgotPassword = async (
-  req: Request,
-  res: Response,
-): Promise<Response | undefined> => {
-  try {
-    const { email } = req.body as { email: string };
+export const forgotPassword = async (req: Request, res: Response) => {
+  const { email } = req.body as { email: string };
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ success: false, message: "No account with that email" });
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ success: false, message: "No account with that email" });
 
-    const otp = generateOtp();
-    user.resetOtp = hashValue(otp);
-    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-    user.isoptverified = false;
-    await user.save();
+  const otp = generateOtp();
+  user.resetOtp = hashValue(otp);
+  user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+  user.isoptverified = false;
+  await user.save();
 
-    await sendMail(user.email, otp, user.userName);
+  await sendMail(user.email, otp, user.userName);
 
-    return res.status(200).json({ success: true, message: "OTP sent to your email" });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
-  }
+  return res.status(200).json({ success: true, message: "OTP sent to your email" });
 };
 
 // ─── Verify OTP ──────────────────────────────────────────────────────────────
 
-export const verifyOtp = async (
-  req: Request,
-  res: Response,
-): Promise<Response | undefined> => {
-  try {
-    const { email, otp } = req.body as { email: string; otp: string };
+export const verifyOtp = async (req: Request, res: Response) => {
+  const { email, otp } = req.body as { email: string; otp: string };
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ success: false, message: "No account with that email" });
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ success: false, message: "No account with that email" });
 
-    if (!user.otpExpires || user.otpExpires < new Date()) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP has expired. Please request a new one.",
-      });
-    }
-
-    if (user.resetOtp !== hashValue(otp)) {
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
-    }
-
-    user.isoptverified = true;
-    user.resetOtp = undefined;
-    user.otpExpires = undefined;
-
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    user.resetPasswordToken = hashValue(resetToken);
-    user.resetPasswordExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    await user.save();
-
-    return res.status(200).json({ success: true, message: "OTP verified", resetToken });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+  if (!user.otpExpires || user.otpExpires < new Date()) {
+    return res.status(400).json({
+      success: false,
+      message: "OTP has expired. Please request a new one.",
+    });
   }
+
+  if (user.resetOtp !== hashValue(otp)) {
+    return res.status(400).json({ success: false, message: "Invalid OTP" });
+  }
+
+  user.isoptverified = true;
+  user.resetOtp = undefined;
+  user.otpExpires = undefined;
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  user.resetPasswordToken = hashValue(resetToken);
+  user.resetPasswordExpiry = new Date(Date.now() + 10 * 60 * 1000);
+  await user.save();
+
+  return res.status(200).json({ success: true, message: "OTP verified", resetToken });
 };
 
 // ─── Reset Password ───────────────────────────────────────────────────────────
 
-export const resetPassword = async (
-  req: Request,
-  res: Response,
-): Promise<Response | undefined> => {
-  try {
-    const { resetToken, password } = req.body as { resetToken: string; password: string };
+export const resetPassword = async (req: Request, res: Response) => {
+  const { resetToken, password } = req.body as { resetToken: string; password: string };
 
-    const user = await User.findOne({
-      resetPasswordToken: hashValue(resetToken),
-      resetPasswordExpiry: { $gt: new Date() },
-      isoptverified: true,
+  const user = await User.findOne({
+    resetPasswordToken: hashValue(resetToken),
+    resetPasswordExpiry: { $gt: new Date() },
+    isoptverified: true,
+  });
+
+  if (!user) {
+    return res.status(400).json({
+      success: false,
+      message: "Session expired or OTP not verified. Please start over.",
     });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "Session expired or OTP not verified. Please start over.",
-      });
-    }
-
-    user.password = await bcrypt.hash(password, 10);
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpiry = undefined;
-    user.isoptverified = false;
-    await user.save();
-
-    return res.status(200).json({ success: true, message: "Password reset successfully" });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
   }
+
+  user.password = await bcrypt.hash(password, 10);
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpiry = undefined;
+  user.isoptverified = false;
+  await user.save();
+
+  return res.status(200).json({ success: true, message: "Password reset successfully" });
 };

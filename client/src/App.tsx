@@ -4,7 +4,6 @@ import {
   Navigate,
 } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
-import "./App.css";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
 import { useSelector } from "react-redux";

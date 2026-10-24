@@ -9,7 +9,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Multi--Stage%20Compose-2496ed?logo=docker)](https://www.docker.com/)
 [![BullMQ](https://img.shields.io/badge/BullMQ-Worker%20Queues-orange)](https://bullmq.io/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-RED%20Metrics-e6522c?logo=prometheus)](https://prometheus.io/)
-[![Tests](https://img.shields.io/badge/Tests-24%2F24%20Passing-success)](file:///Users/kunalyadav/Documents/Projects/Vision/server/__tests__)
+[![Tests](https://img.shields.io/badge/Tests-28%2F28%20Passing-success)](file:///Users/kunalyadav/Documents/Projects/Vision/server/__tests__)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Vision** is a production-grade, distributed video streaming and creator ecosystem inspired by YouTube. Built from the ground up to solve real-world high-throughput bottlenecks (99:1 read/write asymmetry, database lock contention, memory exhaustion, and cluster isolation), it demonstrates the distributed systems engineering patterns expected in Tier-1 tech organizations (18–25+ LPA Lead/Staff level).
@@ -71,10 +71,12 @@
 ### 4. Asynchronous Media Ingestion & Worker Queues (BullMQ)
 * **Decoupled Architecture**: HTTP upload requests immediately return `201 Created` / `202 Accepted` in < 50ms while heavy media processing is offloaded to background worker threads.
 * **HLS Adaptive Bitrate Packaging**: Background workers manage video transcoding into multi-bitrate HTTP Live Streaming segments (360p, 720p, 1080p `.m3u8` master playlists) with exponential retry policies.
+* **Mongoose Strict Schema Synchronization**: Video models explicitly persist `processingStatus` (`"queued"` | `"processing"` | `"completed"` | `"failed"`) and `hlsManifestUrl`, ensuring background worker updates are not stripped by Mongoose strict schema enforcement.
 
 ### 5. Cluster-Wide Sliding-Window Rate Limiting
 * **Distributed Protection**: Unlike single-process in-memory limiters that leak quota when deployed behind load balancers, Vision tracks requests across cluster nodes using Redis Sorted Sets (`ZSET`).
 * **Microsecond Accuracy**: Prunes expired timestamps (`zRemRangeByScore`), verifies capacity (`zCard`), and injects standard RFC headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `Retry-After`).
+* **Fail-Open Lifecycle & Test Isolation**: Fails open gracefully when Redis is offline and exports explicit socket teardown (`closeRedisClient()`) to prevent lingering handles during automated test runs.
 
 ### 6. Enterprise Observability & RED Telemetry (Prometheus & Pino)
 * **RED Metrics Telemetry**: Exposes `vision_http_requests_total` (Rate), `vision_http_request_duration_seconds` (Duration histogram with microsecond buckets), and `vision_active_requests` (Concurrency Gauge) on `GET /metrics`.
@@ -88,9 +90,16 @@
 * **Reusable Zod Middlewares**: Every incoming payload, query param, and URL parameter is validated and sanitized at the route boundary (`validate`, `validateQuery`, `validateParams`) before controller execution, immunizing the database against NoSQL injection.
 * **End-to-End TypeScript**: 100% strict ESM TypeScript across both `client/` and `server/` with **0 compilation errors**.
 
-### 9. Dual-Token JWT Authentication & Refresh Token Rotation
+### 9. Dual-Token JWT Authentication & Session Revocation
 * **Short-Lived Access Tokens**: 15-minute access tokens delivered via tamper-proof `httpOnly` secure cookies.
 * **Hashed Refresh Token DB Rotation**: 7-day refresh tokens stored as salted `bcrypt` hashes in MongoDB. Refresh requests rotate the token and invalidate compromised sessions immediately.
+* **Stateful Token Revocation on Logout**: `GET /logout` is mounted with `optionalAuth` to invalidate and purge the refresh token from MongoDB, ensuring closed sessions cannot be refreshed.
+* **Non-Blocking Cryptography**: Uses asynchronous `await bcrypt.compare()` rather than blocking sync calls, preventing event loop thread starvation during login spikes.
+
+### 10. Security & IDOR Hardening
+* **Insecure Direct Object Reference (IDOR) Protection**: Channel ownership verification is enforced on playlist modifications (`addVideoToPlaylist`, `removeVideoFromPlaylist`) to prevent unauthorized multi-tenant video manipulation.
+* **ReDoS Prevention**: Sanitizes user query inputs with regex character escaping in `aiSearch`, mitigating regular expression denial-of-service vulnerabilities.
+* **Aggregation-Optimized Studio Analytics**: Replaces unindexed manual in-memory counting with MongoDB aggregation pipelines for comment tallies across creator channels.
 
 ---
 
@@ -140,8 +149,8 @@
 Vision/
 ├── docker-compose.yml           # Multi-container orchestration (Mongo, Redis, API, Web, Prometheus)
 ├── prometheus.yml               # Telemetry scraper configuration
-├── VISION_ULTRA.md              # Exhaustive architectural blueprint & reference manual
-├── level.md                     # Engineering level evaluation & ATS resume positioning
+├── level.md                     # Engineering level evaluation & ATS resume positioning (local reference)
+├── universal.md                 # Master catalog of universal vs. domain-coupled code (local reference)
 │
 ├── client/                      # React 19 Client
 │   ├── Dockerfile               # Multi-stage production build (Vite -> Nginx Alpine)
@@ -168,6 +177,7 @@ Vision/
 └── server/                      # Express 5 Distributed Backend
     ├── Dockerfile               # Multi-stage build (Builder -> Non-root Node 22 runner)
     ├── __tests__/               # Automated integration tests (node --test)
+    │   ├── api.test.ts
     │   ├── auth.test.ts
     │   ├── contentValidators.test.ts
     │   └── middleware.test.ts
@@ -186,7 +196,7 @@ Vision/
     │   └── videoQueue.ts        # BullMQ queue & worker for HLS adaptive transcoding
     ├── middleware/
     │   ├── slidingRateLimit.ts  # Redis Sorted Set (ZSET) distributed rate limiter
-    │   ├── isAuthenticated.ts   # Dual-token JWT cookie authentication
+    │   ├── isAuthenticated.ts   # Dual-token JWT cookie authentication & optionalAuth
     │   ├── multer.ts            # Controlled file ingestion with MIME validation
     │   └── rateLimit.ts         # Endpoint-level request throttling
     ├── validators/
@@ -288,7 +298,7 @@ cd server && npm run typecheck
 
 # 2. Backend Automated Integration Tests
 cd server && npm test
-# Output: 24/24 passing (< 100ms)
+# Output: 28/28 passing (< 600ms)
 
 # 3. Frontend Strict Typecheck
 cd client && npm run typecheck
@@ -308,7 +318,8 @@ cd client && npm run build
 |---|---|---|
 | `POST` | `/signup` | User registration with Zod validation |
 | `POST` | `/login` | Authenticate user; returns 15m access cookie + rotates 7d refresh token |
-| `GET` | `/logout` | Clears authentication cookies and invalidates session |
+| `POST` | `/refresh-token` | Rotates 7d refresh token and returns new 15m access token cookie |
+| `GET` | `/logout` | Clears authentication cookies and revokes session in DB (`optionalAuth`) |
 | `POST` | `/googleauth` | Google OAuth verification |
 | `POST` | `/forgot-password`| Sends 6-digit OTP code to email |
 | `POST` | `/verify-otp` | Validates OTP and issues password reset token |
@@ -329,10 +340,10 @@ cd client && npm run build
 | `POST` | `/history/:videoId` | ✅ | Add video to rolling watch history (capped at 200) |
 | `GET` | `/history` | ✅ | Fetch user watch history |
 | `DELETE`| `/history` | ✅ | Clear watch history |
-| `GET` | `/search?query=` | ❌ | AI weighted relevance search |
+| `GET` | `/search?query=` | ❌ | AI weighted relevance search (ReDoS protected) |
 | `GET` | `/category?category=&cursor=&limit=` | ❌ | **Redis Cached** cursor-paginated video feed |
 | `GET` | `/recommendations?videoId=` | ❌ | Content-based recommendations |
-| `GET` | `/studio/analytics` | ✅ | Creator Studio monthly performance & revenue stats |
+| `GET` | `/studio/analytics` | ✅ | Creator Studio monthly performance & aggregation stats |
 | `PUT` | `/video/:id` | ✅ | Update video metadata & **evicts feed cache** |
 | `DELETE`| `/video/:id` | ✅ | Delete video & **evicts feed cache** |
 
@@ -341,18 +352,33 @@ cd client && npm run build
 |---|---|---|---|
 | `POST` | `/create-video` | ✅ | Upload video; triggers async cache invalidation |
 | `GET` | `/videos` | ❌ | Fetch all videos |
-| `GET` | `/video/:id` | ❌ | Fetch video & dispatches **HyperLogLog view deduplication** |
+| `GET` | `/video/:id` | Optional | Fetch video & dispatches **HyperLogLog view deduplication** |
 | `POST` | `/video/:id/like` | ✅ | Toggle video like reaction |
 | `POST` | `/video/:id/dislike` | ✅ | Toggle video dislike reaction |
 | `GET` | `/video/:contentId/comments` | ❌ | **Cursor-paginated** decoupled comments with sorting |
-| `POST` | `/video/:contentId/comments` | ✅ | Add root comment |
+| `POST` | `/video/:contentId/comment` | ✅ | Add root comment to video |
+| `POST` | `/create-short` | ✅ | Upload vertical short video |
+| `GET` | `/shorts` | ❌ | Vertical shorts feed |
+| `GET` | `/short/:id` | ❌ | Fetch specific short video |
+| `POST` | `/short/:id/like` | ✅ | Toggle short like reaction |
+| `GET` | `/short/:contentId/comments` | ❌ | Fetch comments for short |
+| `POST` | `/short/:contentId/comment` | ✅ | Add root comment to short |
+| `POST` | `/create-playlist` | ✅ | Create playlist with visibility flags |
+| `GET` | `/playlists/:channelId` | ❌ | Fetch all playlists for a channel |
+| `GET` | `/playlist/:id` | ❌ | Fetch single playlist by ID |
+| `POST` | `/playlist/:id/add-video` | ✅ | Add video to playlist (**IDOR ownership verified**) |
+| `DELETE`| `/playlist/:id/remove-video/:videoId` | ✅ | Remove video from playlist (**IDOR ownership verified**) |
+| `DELETE`| `/playlist/:id` | ✅ | Delete entire playlist |
+| `POST` | `/create-post` | ✅ | Create creator community post |
+| `GET` | `/posts` | ❌ | Fetch global community posts feed |
+| `GET` | `/posts/:channelId` | ❌ | Fetch community posts for channel |
+| `POST` | `/post/:id/like` | ✅ | Toggle post like reaction |
+| `GET` | `/post/:contentId/comments` | ❌ | Fetch comments for community post |
+| `POST` | `/post/:contentId/comment` | ✅ | Add comment to community post |
+| `DELETE`| `/post/:id` | ✅ | Delete community post |
 | `POST` | `/comment/:commentId/reply` | ✅ | Add nested reply to comment thread |
 | `POST` | `/comment/:commentId/like` | ✅ | Optimistic like reaction on comment |
 | `DELETE`| `/comment/:commentId` | ✅ | Author soft-delete of comment |
-| `POST` | `/create-short` | ✅ | Upload short video |
-| `GET` | `/shorts` | ❌ | Vertical shorts feed |
-| `POST` | `/create-playlist` | ✅ | Create playlist with visibility flags |
-| `POST` | `/playlist/:id/add-video` | ✅ | Add video to playlist |
 | `POST` | `/create-post` | ✅ | Create creator community post |
 | `GET` | `/posts` | ❌ | Fetch community feed |
 

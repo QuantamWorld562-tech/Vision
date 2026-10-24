@@ -3,17 +3,29 @@ import cors from "cors";
 import mongoose from "mongoose";
 import cookieParser from "cookie-parser";
 import { randomUUID } from "crypto";
+import helmet from "helmet";
+import { ZodError } from "zod";
+
 import connectDb from "./config/db.ts";
 import env from "./config/env.ts";
 import authRouter from "./routes/auth.Routes.ts";
 import userRouter from "./routes/user.Routes.ts";
-import contenRouter from "./routes/content.Routes.ts";
-import helmet from "helmet";
+import contentRouter from "./routes/content.Routes.ts";
 import { metricsMiddleware, metricsHandler } from "./services/metrics.service.ts";
 import { startViewBufferWorker } from "./services/viewBuffer.service.ts";
+import { createTranscodeWorker } from "./queues/videoQueue.ts";
+import { apiLimiter } from "./middleware/rateLimit.ts";
+import logger from "./services/logger.service.ts";
 
 const PORT = env.PORT || 5000;
+const IS_PROD = process.env.NODE_ENV === "production";
+const IS_TEST = process.env.NODE_ENV === "test";
+
 const app = express();
+
+// ── Reverse Proxy Awareness ────────────────────────────────────
+// Accurately resolves client IP & secure cookies behind Render, Railway, Nginx, or Docker
+app.set("trust proxy", 1);
 
 const allowedOrigins: string[] = env.CLIENT_URL
   ? env.CLIENT_URL.split(",").map((origin) => origin.trim())
@@ -42,7 +54,7 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (process.env.NODE_ENV !== "test") {
+    if (!IS_TEST) {
       console.log(
         `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms [${requestId}]`
       );
@@ -54,20 +66,27 @@ app.use((req, res, next) => {
 // ── RED Telemetry Middleware ──────────────────────────────────
 app.use(metricsMiddleware);
 
+// ── CORS Configuration ─────────────────────────────────────────
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
 
-      if (origin.endsWith(".vercel.app") || origin === "https://vercel.app") {
-        return callback(null, true);
-      }
-
-      if (/^http:\/\/localhost(:\d+)?$/.test(origin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-
       if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow localhost ONLY outside production (dev & test)
+      if (
+        !IS_PROD &&
+        (/^http:\/\/localhost(:\d+)?$/.test(origin) ||
+          /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin))
+      ) {
+        return callback(null, true);
+      }
+
+      // Allow Vercel preview environments outside production
+      if (!IS_PROD && (origin.endsWith(".vercel.app") || origin === "https://vercel.app")) {
         return callback(null, true);
       }
 
@@ -79,7 +98,8 @@ app.use(
   })
 );
 
-app.use(express.json());
+// ── Body Parser with Payload Limit (Prevent DoS) ───────────────
+app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 // ── Health Check & Base Routes ─────────────────────────────────
@@ -104,30 +124,98 @@ app.get("/", (_req, res) => {
   });
 });
 
-// ── Application Routes ─────────────────────────────────────────
+// ── Application Routes (Protected by Distributed Sliding Rate Limiter) ──
+app.use("/api/v1", apiLimiter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/user", userRouter);
-app.use("/api/v1/content", contenRouter);
+app.use("/api/v1/content", contentRouter);
 
-// ── Centralized Error Handler ──────────────────────────────────
-app.use((err: Error & { statusCode?: number; status?: number }, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(`[ERROR] ${req.method} ${req.url} - ID: ${req.headers["x-request-id"]}`, err);
-  const statusCode = err.statusCode || err.status || 500;
+// ── Centralized Error Handler (Structured Pino Logging) ────────
+interface AppError extends Error {
+  statusCode?: number;
+  status?: number;
+  isOperational?: boolean;
+  errors?: unknown;
+}
 
-  res.status(statusCode).json({
+app.use((err: Error | AppError | ZodError, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  const requestId = req.headers["x-request-id"] as string | undefined;
+
+  // ── Global Zod Validation Error Interceptor ───────────────────
+  if (err instanceof ZodError) {
+    const validationErrors = err.flatten().fieldErrors;
+
+    logger.warn(
+      {
+        method: req.method,
+        url: req.originalUrl || req.url,
+        requestId,
+        statusCode: 400,
+        validationErrors,
+      },
+      "Client validation failed"
+    );
+
+    return res.status(400).json({
+      success: false,
+      message: "Validation failed",
+      errors: validationErrors,
+      requestId,
+    });
+  }
+
+  // ── General Server / Application Error Handler ────────────────
+  const appErr = err as AppError;
+  const statusCode = appErr.statusCode || appErr.status || 500;
+  const isProduction = process.env.NODE_ENV === "production";
+
+  logger.error(
+    {
+      method: req.method,
+      url: req.originalUrl || req.url,
+      requestId,
+      statusCode,
+      err: {
+        message: appErr.message,
+        stack: appErr.stack,
+        ...(appErr.errors ? { errors: appErr.errors } : {}),
+      },
+    },
+    "Request failed with error"
+  );
+
+  const safeMessage =
+    isProduction && statusCode === 500
+      ? "Internal server error"
+      : appErr.message || "An unexpected error occurred";
+
+  return res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal server error",
-    requestId: req.headers["x-request-id"],
+    message: safeMessage,
+    ...(appErr.errors ? { errors: appErr.errors } : {}),
+    ...(!isProduction && { stack: appErr.stack }),
+    requestId,
   });
 });
 
 export default app;
 
-if (process.argv[1] && (process.argv[1].endsWith("index.ts") || process.argv[1].endsWith("index.js"))) {
-  connectDb().finally(() => {
-    startViewBufferWorker();
-    app.listen(PORT, () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
+// ── Fail-Fast Server Startup ───────────────────────────────────
+if (!IS_TEST && process.argv[1] && (process.argv[1].endsWith("index.ts") || process.argv[1].endsWith("index.js"))) {
+  connectDb()
+    .then(() => {
+      startViewBufferWorker();
+      createTranscodeWorker();
+      app.listen(PORT, () => {
+        console.log(`🚀 Server is running on port ${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error("Failed to connect to database. Exiting...", err);
+      process.exit(1);
     });
-  });
 }

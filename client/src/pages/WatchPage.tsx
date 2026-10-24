@@ -6,7 +6,8 @@ import { serverUrl } from "../constants";
 import { useSelector } from "react-redux";
 import Loader from "../components/Loader";
 import type { RootState } from "../redux/store";
-import type { VideoData, CommentData, ApiError } from "../types";
+import type { VideoData } from "../types";
+import CommentSection from "../components/CommentSection";
 
 function timeAgo(dateStr?: string): string {
   if (!dateStr) return "";
@@ -35,8 +36,7 @@ function WatchPage() {
 
   const [video, setVideo] = useState<VideoData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [comment, setComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+
   const [descExpanded, setDescExpanded] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [subCount, setSubCount] = useState(0);
@@ -163,26 +163,7 @@ function WatchPage() {
     }
   };
 
-  const handleComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userData || !id) { toast.error("Please login to comment"); return; }
-    if (!comment.trim()) return;
-    try {
-      setSubmitting(true);
-      const res = await axios.post(
-        `${serverUrl}/api/v1/content/video/${id}/comment`,
-        { message: comment },
-        { withCredentials: true },
-      );
-      setVideo((v) => (v ? { ...v, comments: [...(v.comments || []), res.data as CommentData] } : null));
-      setComment("");
-    } catch (error) {
-      const err = error as ApiError;
-      toast.error(err.response?.data?.message || "Failed to post comment");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+
 
   if (loading) {
     return (
@@ -198,13 +179,14 @@ function WatchPage() {
     <div className="max-w-7xl mx-auto px-2 md:px-4 py-4 flex flex-col lg:flex-row gap-6">
       {/* ── Left — video + info ── */}
       <div className="flex-1 min-w-0">
-        {/* Video player */}
-        <div className="w-full rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
+        {/* Standard Video Player */}
+        <div className="w-full bg-black rounded-2xl overflow-hidden aspect-video shadow-sm">
           <video
             src={video.videoUrl}
             controls
             autoPlay
-            className="w-full h-full"
+            playsInline
+            className="w-full h-full object-contain"
           />
         </div>
 
@@ -323,67 +305,8 @@ function WatchPage() {
           </div>
         )}
 
-        {/* Comments */}
-        <div className="mt-6">
-          <h3 className="text-base font-semibold mb-4">
-            {video.comments?.length ?? 0} Comments
-          </h3>
-
-          <form onSubmit={handleComment} className="flex gap-3 mb-6">
-            {userData?.photoUrl ? (
-              <img src={userData.photoUrl} className="w-9 h-9 rounded-full object-cover shrink-0" alt="" />
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-gray-500 text-lg">account_circle</span>
-              </div>
-            )}
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder={userData ? "Add a comment..." : "Login to comment"}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                disabled={!userData}
-                className="w-full border-b border-gray-300 focus:border-gray-800 outline-none text-sm py-1.5 bg-transparent transition-colors"
-              />
-              {comment && (
-                <div className="flex justify-end gap-2 mt-2">
-                  <button type="button" onClick={() => setComment("")} className="text-sm px-3 py-1.5 rounded-full hover:bg-gray-100">
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting || !comment.trim()}
-                    className="text-sm px-4 py-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 disabled:opacity-50 transition-colors"
-                  >
-                    {submitting ? "Posting..." : "Comment"}
-                  </button>
-                </div>
-              )}
-            </div>
-          </form>
-
-          <div className="flex flex-col gap-4">
-            {video.comments?.map((c) => (
-              <div key={c._id} className="flex gap-3">
-                {c.author?.photoUrl ? (
-                  <img src={c.author.photoUrl} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-gray-500 text-base">account_circle</span>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs font-semibold text-gray-800">
-                    {c.author?.userName ?? "User"}
-                    <span className="text-gray-400 font-normal ml-2">{timeAgo(c.createdAt)}</span>
-                  </p>
-                  <p className="text-sm text-gray-700 mt-0.5">{c.message}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Comments — nested, sortable, with likes & replies */}
+        {id && <CommentSection videoId={id} currentUser={userData} />}
       </div>
 
       {/* ── Right — recommended ── */}

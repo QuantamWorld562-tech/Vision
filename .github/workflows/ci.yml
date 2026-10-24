@@ -1,0 +1,54 @@
+name: Vision CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      SECRET_KEY: test-secret
+      REFRESH_SECRET: test-refresh-secret
+      MONGODB_URI: mongodb://127.0.0.1:27017/vision-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: ./server
+        run: npm ci
+
+      - name: Install client dependencies
+        working-directory: ./client
+        run: npm ci
+
+      - name: Run server tests
+        working-directory: ./server
+        run: npm test -- --test-reporter=spec
+
+      - name: Run server typecheck
+        working-directory: ./server
+        run: npx tsc --noEmit
+
+      - name: Run client typecheck
+        working-directory: ./client
+        run: npx tsc --noEmit
+
+      - name: Build client
+        working-directory: ./client
+        run: npm run build
