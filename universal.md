@@ -9,7 +9,6 @@ This master document indexes all **universal** (domain-agnostic, generic infrast
 | File Name | Relative Path | Absolute Path | Purpose / Category |
 |---|---|---|---|
 | [`validate.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/validators/validate.ts) | `server/validators/validate.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/validators/validate.ts` | Generic Express Zod middleware (`validate`, `validateQuery`, `validateParams`) |
-| [`requestValidator.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/validators/requestValidator.ts) | `server/validators/requestValidator.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/validators/requestValidator.ts` | Validation runners, error mappers, email, password, and string validators |
 | [`schemas.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/validators/schemas.ts) *(Building Blocks)* | `server/validators/schemas.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/validators/schemas.ts` | MongoDB `objectIdSchema` and cursor `paginationQuerySchema` |
 | [`multer.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/middleware/multer.ts) | `server/middleware/multer.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/middleware/multer.ts` | Generic multipart disk-storage upload middleware with image/video MIME filtering |
 | [`isAuthenticated.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/middleware/isAuthenticated.ts) | `server/middleware/isAuthenticated.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/middleware/isAuthenticated.ts` | Universal JWT auth verification and optional guest auth middleware |
@@ -19,7 +18,6 @@ This master document indexes all **universal** (domain-agnostic, generic infrast
 | [`cloudinary.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/config/cloudinary.ts) | `server/config/cloudinary.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/config/cloudinary.ts` | Generic cloud asset uploader with automated disk cleanup and test mock |
 | [`sendMail.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/config/sendMail.ts) | `server/config/sendMail.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/config/sendMail.ts` | Nodemailer SMTP email dispatcher for OTP and transactional emails |
 | [`express.d.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/types/express.d.ts) | `server/types/express.d.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/types/express.d.ts` | Ambient Express typing extension injecting `req.id` |
-| [`module-shims.d.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/types/module-shims.d.ts) | `server/types/module-shims.d.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/types/module-shims.d.ts` | Ambient module declarations for untyped npm packages |
 | [`env.d.ts`](file:///Users/kunalyadav/Documents/Projects/Vision/server/types/env.d.ts) | `server/types/env.d.ts` | `/Users/kunalyadav/Documents/Projects/Vision/server/types/env.d.ts` | Ambient typing for `NodeJS.ProcessEnv` |
 
 ---
