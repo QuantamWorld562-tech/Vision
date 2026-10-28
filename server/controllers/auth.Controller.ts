@@ -5,6 +5,7 @@ import uploadOnCloudinary from "../config/cloudinary.ts";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import sendMail from "../config/sendMail.ts";
+import env from "../config/env.ts";
 import type { Request, Response } from "express";
 
 /** Generate a 6-digit numeric OTP */
@@ -21,15 +22,15 @@ const hashValue = (value: string): string =>
  */
 const accessCookieOptions = {
   httpOnly: true,
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-  secure: process.env.NODE_ENV === "production",
+  sameSite: env.NODE_ENV === "production" ? "none" : "strict",
+  secure: env.NODE_ENV === "production",
   maxAge: 15 * 60 * 1000,
 } as const;
 
 const refreshCookieOptions = {
   httpOnly: true,
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-  secure: process.env.NODE_ENV === "production",
+  sameSite: env.NODE_ENV === "production" ? "none" : "strict",
+  secure: env.NODE_ENV === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 } as const;
 
@@ -58,12 +59,12 @@ const sendAuthResponse = (
 };
 
 const issueTokens = async (user: IUser) => {
-  const accessToken = jwt.sign({ userId: user._id }, process.env.SECRET_KEY!, {
+  const accessToken = jwt.sign({ userId: user._id }, env.SECRET_KEY, {
     expiresIn: "15m",
   });
   const refreshToken = jwt.sign(
     { userId: user._id },
-    process.env.REFRESH_SECRET || process.env.SECRET_KEY!,
+    env.REFRESH_SECRET || env.SECRET_KEY,
     { expiresIn: "7d" },
   );
 
@@ -130,7 +131,7 @@ export const logout = async (req: Request, res: Response) => {
     try {
       const decoded = jwt.verify(
         req.cookies.refreshToken,
-        process.env.REFRESH_SECRET || process.env.SECRET_KEY!,
+        env.REFRESH_SECRET || env.SECRET_KEY,
       ) as jwt.JwtPayload & { userId: string };
       userId = decoded.userId;
     } catch {
@@ -160,7 +161,7 @@ export const refreshTokenController = async (req: Request, res: Response) => {
 
     const decoded = jwt.verify(
       incomingRefreshToken,
-      process.env.REFRESH_SECRET || process.env.SECRET_KEY!,
+      env.REFRESH_SECRET || env.SECRET_KEY,
     ) as jwt.JwtPayload & { userId: string };
 
     const user = await User.findById(decoded.userId);
