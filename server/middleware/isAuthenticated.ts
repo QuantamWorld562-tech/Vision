@@ -1,5 +1,6 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import type { NextFunction, Request, Response } from "express";
+import env from "../config/env.ts";
 
 interface VisionJwtPayload extends JwtPayload {
   userId: string;
@@ -25,7 +26,7 @@ const isAuthenticated = async (
       });
     }
 
-    const decode = jwt.verify(token, process.env.SECRET_KEY!) as VisionJwtPayload;
+    const decode = jwt.verify(token, env.SECRET_KEY) as VisionJwtPayload;
 
     if (!decode || !decode.userId) {
       return res.status(401).json({
@@ -51,7 +52,7 @@ export const optionalAuth = async (
     const token = extractToken(req);
 
     if (token) {
-      const decode = jwt.verify(token, process.env.SECRET_KEY!) as VisionJwtPayload;
+      const decode = jwt.verify(token, env.SECRET_KEY) as VisionJwtPayload;
       if (decode?.userId) {
         req.id = decode.userId;
       }
