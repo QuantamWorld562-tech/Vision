@@ -1,11 +1,12 @@
 import mongoose from "mongoose";
 import { ensureDatabaseIndexes } from "./indexes.ts";
+import env from "./env.ts";
 
 // ── Native NoSQL Injection Protection ──────────────────────────
 mongoose.set("sanitizeFilter", true);
 
 const connectDb = async (): Promise<boolean> => {
-  const mongoUri = process.env.MONGO_URI;
+  const mongoUri = env.MONGO_URI;
 
   if (!mongoUri) {
     console.warn("MONGO_URI is not set. Starting server without MongoDB connection.");
