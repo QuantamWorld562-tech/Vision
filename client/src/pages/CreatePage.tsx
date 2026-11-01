@@ -30,17 +30,18 @@ function CreatePage() {
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Create</h1>
+      <p className="text-xs uppercase tracking-[0.2em] text-indigo-500 font-semibold mb-2">Creator studio</p>
+      <h1 className="text-3xl font-black tracking-tight text-gray-900 mb-2">Create something remarkable.</h1>
       <p className="text-sm text-gray-500 mb-6">Choose what you'd like to share</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {cards.map((card) => (
           <button
             key={card.label}
             onClick={() => navigate(card.path)}
-            className="flex items-center gap-4 p-5 border border-gray-200 hover:border-red-300 hover:bg-red-50 rounded-2xl text-left transition-colors group"
+            className="surface-card flex items-center gap-4 p-5 rounded-2xl text-left transition-all group hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-950/10"
           >
-            <div className="w-12 h-12 rounded-xl bg-gray-100 group-hover:bg-red-100 flex items-center justify-center transition-colors">
-              <span className="material-symbols-outlined text-gray-500 group-hover:text-red-500 text-[28px]">{card.icon}</span>
+            <div className="w-12 h-12 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
+              <span className="material-symbols-outlined text-indigo-500 text-[28px]">{card.icon}</span>
             </div>
             <div>
               <p className="font-semibold text-gray-900">{card.label}</p>
