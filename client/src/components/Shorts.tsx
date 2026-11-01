@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import { LuArrowUpRight, LuCircleUserRound, LuFilm, LuHeart, LuMessageCircle, LuPlay, LuVolume2, LuVolumeX } from "react-icons/lu";
 import { serverUrl } from "../constants";
 import { useSelector } from "react-redux";
 import toast from "react-hot-toast";
@@ -13,6 +15,7 @@ function Shorts() {
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { userData } = useSelector((store: RootState) => store.user);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchShorts = async () => {
@@ -72,10 +75,25 @@ function Shorts() {
 
   if (shorts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-56px)] gap-3 text-gray-400">
-        <span className="material-symbols-outlined text-6xl">slideshow</span>
-        <p className="text-base font-medium">No shorts yet</p>
-        <p className="text-sm">Upload the first short!</p>
+      <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden px-4 py-10">
+        <div className="absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 rounded-full bg-red-100/70 blur-3xl" aria-hidden="true" />
+        <div className="surface-card relative z-10 flex w-full max-w-md flex-col items-center rounded-3xl px-8 py-12 text-center">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-500">
+            <LuFilm className="h-8 w-8" strokeWidth={1.8} />
+          </div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-500">Shorts studio</p>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">Your next moment starts here.</h1>
+          <p className="mt-3 max-w-xs text-sm leading-6 text-slate-500">
+            Share quick ideas, behind-the-scenes clips, and stories with your audience.
+          </p>
+          <button
+            onClick={() => navigate("/createshort")}
+            className="mt-7 inline-flex items-center gap-2 rounded-xl bg-red-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/20 transition-all hover:-translate-y-0.5 hover:bg-red-600"
+          >
+            Upload your first Short
+            <LuArrowUpRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     );
   }
@@ -83,7 +101,7 @@ function Shorts() {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col items-center overflow-y-scroll snap-y snap-mandatory h-[calc(100vh-56px)] scrollbar-none"
+      className="flex flex-col items-center overflow-y-scroll snap-y snap-mandatory h-[calc(100vh-4rem)] scrollbar-none bg-slate-950/5"
       style={{ scrollbarWidth: "none" }}
     >
       {shorts.map((short, index) => (
@@ -150,10 +168,10 @@ function ShortItem({
       data-short-item
       data-index={index}
       className="relative w-full max-w-sm shrink-0 snap-start snap-always flex items-center justify-center"
-      style={{ height: "calc(100vh - 56px)" }}
+      style={{ height: "calc(100vh - 4rem)" }}
     >
       {/* Video */}
-      <div className="relative h-full w-full max-w-sm rounded-2xl overflow-hidden bg-black">
+      <div className="relative h-full w-full max-w-sm overflow-hidden rounded-3xl bg-black shadow-2xl shadow-slate-950/25 ring-1 ring-black/10">
         <video
           ref={videoRef}
           src={short.shortUrl}
@@ -170,7 +188,7 @@ function ShortItem({
         {!playing && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="bg-black/40 rounded-full p-4">
-              <span className="material-symbols-outlined text-white text-4xl">play_arrow</span>
+              <LuPlay className="h-9 w-9 fill-white text-white" />
             </div>
           </div>
         )}
@@ -181,7 +199,7 @@ function ShortItem({
             {short.channel?.avatar ? (
               <img src={short.channel.avatar} className="w-8 h-8 rounded-full object-cover border border-white" alt="" />
             ) : (
-              <span className="material-symbols-outlined text-white text-2xl">account_circle</span>
+              <LuCircleUserRound className="h-7 w-7 text-white" />
             )}
             <span className="text-white text-sm font-semibold">{short.channel?.name}</span>
           </div>
@@ -196,9 +214,7 @@ function ShortItem({
           {/* Like */}
           <button onClick={onLike} className="flex flex-col items-center gap-1">
             <div className={`p-2 rounded-full ${isLiked ? "bg-red-500" : "bg-black/40"}`}>
-              <span className="material-symbols-outlined text-white text-2xl">
-                {isLiked ? "favorite" : "favorite_border"}
-              </span>
+              <LuHeart className={`h-6 w-6 ${isLiked ? "fill-white" : ""}`} />
             </div>
             <span className="text-white text-xs">{short.likes?.length ?? 0}</span>
           </button>
@@ -206,7 +222,7 @@ function ShortItem({
           {/* Comments */}
           <button className="flex flex-col items-center gap-1">
             <div className="p-2 rounded-full bg-black/40">
-              <span className="material-symbols-outlined text-white text-2xl">comment</span>
+              <LuMessageCircle className="h-6 w-6" />
             </div>
             <span className="text-white text-xs">{short.comments?.length ?? 0}</span>
           </button>
@@ -214,9 +230,7 @@ function ShortItem({
           {/* Mute toggle */}
           <button onClick={() => setMuted((m) => !m)} className="flex flex-col items-center gap-1">
             <div className="p-2 rounded-full bg-black/40">
-              <span className="material-symbols-outlined text-white text-2xl">
-                {muted ? "volume_off" : "volume_up"}
-              </span>
+              {muted ? <LuVolumeX className="h-6 w-6" /> : <LuVolume2 className="h-6 w-6" />}
             </div>
           </button>
         </div>
