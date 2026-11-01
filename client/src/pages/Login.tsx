@@ -155,14 +155,15 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="min-h-screen relative overflow-hidden bg-[#f7f8fc] flex items-center justify-center px-4">
+      <div className="hero-orb !right-[-5rem] !top-[-5rem] opacity-40" aria-hidden="true" />
       {loading && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm gap-4">
           <Loader />
           <p className="text-gray-500 text-sm font-medium mt-4">Please wait...</p>
         </div>
       )}
-      <div className="bg-white w-full max-w-sm rounded-2xl shadow-lg p-8">
+      <div className="surface-card relative z-10 w-full max-w-sm rounded-3xl p-8">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
