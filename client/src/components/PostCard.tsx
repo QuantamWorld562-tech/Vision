@@ -74,7 +74,7 @@ function PostCard({ post: initialPost }: PostCardProps) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+    <div className="surface-card rounded-3xl overflow-hidden transition-shadow hover:shadow-xl hover:shadow-indigo-950/5">
       {/* Header */}
       <div className="flex items-center gap-3 p-4">
         {(post.channel as { avatar?: string })?.avatar ? (
