@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import { LuCircleAlert, LuRefreshCw, LuSparkles } from "react-icons/lu";
 import { serverUrl } from "../constants";
 import PostCard from "./PostCard";
 import VirtualizedVideoGrid from "./VirtualizedVideoGrid";
@@ -41,11 +42,11 @@ export function VideoCard({ video }: { video: VideoData }) {
   const navigate = useNavigate();
   return (
     <div
-      className="flex flex-col gap-2 cursor-pointer group"
+      className="flex flex-col gap-2 cursor-pointer group rounded-2xl p-1.5 -m-1.5 transition-colors hover:bg-white/70"
       onClick={() => navigate(`/watch/${video._id}`)}
     >
       <div
-        className="relative w-full rounded-xl overflow-hidden bg-gray-100"
+        className="relative w-full rounded-2xl overflow-hidden bg-gray-100 shadow-sm group-hover:shadow-lg group-hover:shadow-indigo-950/10 transition-shadow"
         style={{ aspectRatio: "16/9" }}
       >
         <img
@@ -244,23 +245,45 @@ function Feed() {
 
   if (error && videos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-500">
-        <span className="material-symbols-outlined text-5xl">error_outline</span>
-        <p className="text-sm">{error}</p>
-        <button
-          onClick={() => loadCategoryVideos(selectedCategory)}
-          className="text-sm text-red-500 hover:underline"
-        >
-          Retry
-        </button>
+      <div className="relative flex min-h-[calc(100vh-12rem)] items-center justify-center overflow-hidden px-4 py-12">
+        <div className="absolute h-72 w-72 rounded-full bg-red-100/60 blur-3xl" aria-hidden="true" />
+        <div className="surface-card relative z-10 flex w-full max-w-lg flex-col items-center rounded-3xl px-8 py-10 text-center">
+          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-500">
+            <LuCircleAlert className="h-7 w-7" />
+          </div>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <LuSparkles className="h-3.5 w-3.5 text-red-400" />
+            Feed unavailable
+          </p>
+          <h1 className="text-xl font-black tracking-tight text-slate-900">We couldn’t load your feed.</h1>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+            The service may be waking up. Try again in a moment and your recommendations will be right here.
+          </p>
+          <button
+            onClick={() => loadCategoryVideos(selectedCategory)}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-red-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/20 transition-all hover:-translate-y-0.5 hover:bg-red-600"
+          >
+            <LuRefreshCw className="h-4 w-4" />
+            Try again
+          </button>
+          <p className="mt-4 text-xs text-slate-400">{error}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="relative max-w-[1440px] mx-auto">
+      <section className="feed-hero mb-7">
+        <div className="max-w-xl">
+          <p className="text-xs uppercase tracking-[0.22em] text-cyan-200 font-semibold mb-2">Your daily signal</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Discover something worth watching.</h1>
+          <p className="text-sm text-white/70 mt-2 max-w-md">A calmer, smarter home for the videos and creators you care about.</p>
+        </div>
+        <div className="hero-orb" aria-hidden="true" />
+      </section>
       {/* Tab switcher */}
-      <div className="flex gap-1 mb-5 border-b border-gray-100">
+      <div className="flex gap-1 mb-6 border-b border-gray-200/80">
         {(["videos", "posts"] as const).map((tab) => (
           <button
             key={tab}
