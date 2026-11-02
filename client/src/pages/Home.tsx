@@ -19,7 +19,6 @@ import {
 } from "react-icons/lu";
 import type { IconType } from "react-icons";
 import Profile from "../components/Profile";
-import LandingPage from "../components/LandingPage";
 import type { RootState } from "../redux/store";
 import type { NavItem } from "../types";
 
@@ -109,7 +108,6 @@ function Home() {
   const navigate = useNavigate();
   const location = useLocation();
   const { userData, authLoading } = useSelector((store: RootState) => store.user);
-  const [showLanding, setShowLanding] = useState(true);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,17 +151,6 @@ function Home() {
   const isHome = location.pathname === "/";
 
   if (authLoading) return null;
-
-  if (!userData && showLanding) {
-    return (
-      <LandingPage
-        onLogin={() => navigate("/login")}
-        onExplore={() => {
-          setShowLanding(false);
-        }}
-      />
-    );
-  }
 
   return (
     <>
